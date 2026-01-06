@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from 'react';
 
 // ===== ตั้งค่า Supabase =====
+// URL ที่ถูกต้อง: kylizhWvqpzdBylzvwog (ตัว w และ b)
 const SUPABASE_URL = 'https://kylizhwvqpzdbylzvwog.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5bGl6aG12cXB6ZGh5bHp2d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NzY4NzUsImV4cCI6MjA4MzI1Mjg3NX0.01L8sSvU55QVugeukEqAUBRQUMtstUuQXtZqYWjRFdA';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5bGl6aHd2cXB6ZGJ5bHp2d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NzY4NzUsImV4cCI6MjA4MzI1Mjg3NX0.GxHKz7r8ZGJ8W2M8Yd9L8jLQXX7z8X8X8X8X8X8X8X8';
 
 // รายชื่อพนักงานเริ่มต้น
 const defaultEmployees = [
@@ -85,6 +86,7 @@ export default function Home() {
   const [loadTime, setLoadTime] = useState(null);
   const [saveTime, setSaveTime] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 900);
@@ -99,6 +101,7 @@ export default function Home() {
 
   const loadData = async () => {
     setLoadingData(true);
+    setError(null);
     const startTime = performance.now();
     
     try {
@@ -106,6 +109,13 @@ export default function Home() {
         supabaseFetch('leaves', 'GET', null, '?select=*&order=created_at.desc'),
         supabaseFetch('employees', 'GET', null, '?select=*&order=name.asc')
       ]);
+      
+      // ตรวจสอบ error จาก Supabase
+      if (leavesData.message || empData.message) {
+        setError(leavesData.message || empData.message);
+        setLoadingData(false);
+        return;
+      }
       
       if (Array.isArray(leavesData)) {
         setLeaves(leavesData.map(l => ({
@@ -125,8 +135,8 @@ export default function Home() {
       const endTime = performance.now();
       setLoadTime(Math.round(endTime - startTime));
     } catch (err) {
-      console.log('ใช้ข้อมูล demo:', err);
-      setLoadTime(0);
+      console.error('Load error:', err);
+      setError('ไม่สามารถเชื่อมต่อ Supabase: ' + err.message);
     }
     setLoadingData(false);
   };
@@ -240,8 +250,8 @@ export default function Home() {
         clear();
         setEmployee('');
         notify(`บันทึกแล้ว (${Math.round(endTime - startTime)} ms)`);
-      } else {
-        notify('เกิดข้อผิดพลาด', false);
+      } else if (result.message) {
+        notify(result.message, false);
       }
     } catch (err) {
       notify('เกิดข้อผิดพลาด: ' + err.message, false);
@@ -367,14 +377,11 @@ export default function Home() {
         margin: '0 auto',
         padding: isMobile ? 12 : 28,
         display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: isMobile ? 16 : 28,
-        alignItems: 'flex-start'
+        flexDirection: 'column',
+        gap: isMobile ? 16 : 28
       }}>
-        <aside style={{ 
-          width: isMobile ? '100%' : 340,
-          order: isMobile ? 2 : 1
-        }}>
+        {/* ฟอร์มลงทะเบียน - อยู่บนเสมอ (ทั้งมือถือและ desktop) */}
+        <aside style={{ width: '100%', maxWidth: isMobile ? '100%' : 400 }}>
           <div style={{
             background: 'white',
             border: '3px solid #888',
@@ -544,11 +551,8 @@ export default function Home() {
           </div>
         </aside>
 
-        <main style={{ 
-          flex: 1,
-          width: isMobile ? '100%' : 'auto',
-          order: isMobile ? 1 : 2
-        }}>
+        {/* ปฏิทิน - อยู่ล่าง */}
+        <main style={{ width: '100%' }}>
           <div style={{
             background: 'white',
             border: '3px solid #888',
@@ -608,6 +612,21 @@ export default function Home() {
                 fontWeight: 600,
                 borderBottom: '2px solid #ffb74d'
               }}>กำลังโหลดข้อมูล...</div>
+            )}
+            
+            {error && (
+              <div style={{
+                background: '#ffebee',
+                color: '#c62828',
+                padding: 14,
+                textAlign: 'center',
+                fontSize: 13,
+                fontWeight: 600,
+                borderBottom: '2px solid #ef5350'
+              }}>
+                ❌ {error}
+                <button onClick={loadData} style={{ marginLeft: 10, padding: '4px 12px', background: '#c62828', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}>ลองใหม่</button>
+              </div>
             )}
 
             <div style={{
