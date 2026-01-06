@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 
 // ===== ตั้งค่า Supabase =====
-const SUPABASE_URL = 'https://kylizhmvqpzdhylzvwog.supabase.co';
+const SUPABASE_URL = 'https://kylizhwvqpzdbylzvwog.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5bGl6aG12cXB6ZGh5bHp2d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NzY4NzUsImV4cCI6MjA4MzI1Mjg3NX0.01L8sSvU55QVugeukEqAUBRQUMtstUuQXtZqYWjRFdA';
 
 // รายชื่อพนักงานเริ่มต้น
