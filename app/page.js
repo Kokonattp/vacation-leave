@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 
 // ===== ตั้งค่า URL ของ Google Apps Script =====
-const SCRIPT_URL = 'ใส่_URL_ที่ได้จาก_Google_Apps_Script_ตรงนี้';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyIZD4ZpfgrPGe5VWKy208rVY8ShARzo5EKeql04Y3_MOxVsev3fmEsIBoT_U-IgS5GHw/exec';
 
 // รายชื่อพนักงาน
 const defaultEmployees = [
