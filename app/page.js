@@ -41,14 +41,22 @@ const thaiMonthsShort = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', '
 const days = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
 const formatThaiDate = (dateStr) => {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + 'T00:00:00');
   return `${d.getDate()} ${thaiMonthsShort[d.getMonth()]}`;
 };
 
 const formatThaiDateFull = (dateStr) => {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + 'T00:00:00');
   const year = (d.getFullYear() + 543).toString().slice(-2);
   return `${d.getDate()} ${thaiMonthsShort[d.getMonth()]} ${year}`;
+};
+
+// ฟังก์ชันสร้าง date string จาก local date (ไม่ใช้ UTC)
+const toLocalDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
 
 // Supabase API functions
@@ -142,10 +150,10 @@ export default function Home() {
   const leaveMap = useMemo(() => {
     const map = new Map();
     leaves.forEach(l => {
-      let d = new Date(l.startDate);
-      const end = new Date(l.endDate);
+      let d = new Date(l.startDate + 'T00:00:00');
+      const end = new Date(l.endDate + 'T00:00:00');
       while (d <= end) {
-        const k = d.toISOString().slice(0, 10);
+        const k = toLocalDateStr(d);
         map.set(k, [...(map.get(k) || []), { 
           name: l.name, 
           createdDate: l.createdDate,
@@ -171,7 +179,7 @@ export default function Home() {
 
   const handleClick = (day) => {
     if (!day || !employee) return;
-    const dateStr = new Date(month.getFullYear(), month.getMonth(), day).toISOString().slice(0, 10);
+    const dateStr = toLocalDateStr(new Date(month.getFullYear(), month.getMonth(), day));
     
     if (leaveMap.has(dateStr)) {
       notify('วันนี้มีคนลาแล้ว', false);
@@ -185,9 +193,9 @@ export default function Home() {
       if (dateStr < startDate) {
         setStartDate(dateStr);
       } else {
-        let d = new Date(startDate);
-        while (d <= new Date(dateStr)) {
-          if (leaveMap.has(d.toISOString().slice(0, 10))) {
+        let d = new Date(startDate + 'T00:00:00');
+        while (d <= new Date(dateStr + 'T00:00:00')) {
+          if (leaveMap.has(toLocalDateStr(d))) {
             notify('ช่วงนี้มีวันที่ลาแล้ว', false);
             return;
           }
@@ -219,7 +227,7 @@ export default function Home() {
     
     const startTime = performance.now();
     const now = new Date();
-    const createdDate = now.toISOString().slice(0, 10);
+    const createdDate = toLocalDateStr(now);
     const createdTime = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     
     const newLeave = { 
@@ -288,7 +296,7 @@ export default function Home() {
     });
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateStr(new Date());
   const daysCount = startDate ? (endDate ? Math.ceil((new Date(endDate) - new Date(startDate)) / 864e5) + 1 : 1) : 0;
 
   const cellHeight = isMobile ? 70 : 110;
@@ -663,7 +671,7 @@ export default function Home() {
                 );
                 
                 const date = new Date(month.getFullYear(), month.getMonth(), day);
-                const dateStr = date.toISOString().slice(0, 10);
+                const dateStr = toLocalDateStr(date);
                 const data = leaveMap.get(dateStr) || [];
                 const hasLeave = data.length > 0;
                 const isToday = dateStr === today;
@@ -707,9 +715,9 @@ export default function Home() {
                       justifyContent: 'center',
                       fontSize: isMobile ? 12 : 16,
                       fontWeight: 700,
-                      color: (start || end) ? 'white' : isToday ? '#e65100' : weekend ? '#c62828' : '#333',
+                      color: (start || end) ? 'white' : isToday ? 'white' : weekend ? '#c62828' : '#333',
                       borderRadius: 6,
-                      background: (start || end) ? 'transparent' : isToday ? '#fff' : 'transparent'
+                      background: 'transparent'
                     }}>{day}</span>
                     
                     {hasLeave && (
