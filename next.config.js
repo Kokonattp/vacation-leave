@@ -6,7 +6,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // ถ้า repo ชื่อ vacation-leave ให้ใส่ basePath
-  // basePath: '/vacation-leave',
+   basePath: '/vacation-leave',
 }
 
 module.exports = nextConfig
