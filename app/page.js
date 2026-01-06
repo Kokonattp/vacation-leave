@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react';
 
-// ===== ตั้งค่า URL ของ Google Apps Script =====
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyIZD4ZpfgrPGe5VWKy208rVY8ShARzo5EKeql04Y3_MOxVsev3fmEsIBoT_U-IgS5GHw/exec';
+// ===== ตั้งค่า Supabase =====
+const SUPABASE_URL = 'https://kylizhmvqpzdhylzvwog.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5bGl6aG12cXB6ZGh5bHp2d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NzY4NzUsImV4cCI6MjA4MzI1Mjg3NX0.01L8sSvU55QVugeukEqAUBRQUMtstUuQXtZqYWjRFdA';
 
-// รายชื่อพนักงาน
+// รายชื่อพนักงานเริ่มต้น
 const defaultEmployees = [
   'จุฑามาศ',
   'ขนิษฐา', 
@@ -50,6 +51,23 @@ const formatThaiDateFull = (dateStr) => {
   return `${d.getDate()} ${thaiMonthsShort[d.getMonth()]} ${year}`;
 };
 
+// Supabase API functions
+const supabaseFetch = async (table, method = 'GET', body = null, query = '') => {
+  const options = {
+    method,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': method === 'POST' ? 'return=representation' : ''
+    }
+  };
+  if (body) options.body = JSON.stringify(body);
+  
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, options);
+  return res.json();
+};
+
 export default function Home() {
   const [leaves, setLeaves] = useState([]);
   const [employees, setEmployees] = useState(defaultEmployees);
@@ -66,6 +84,14 @@ export default function Home() {
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [loadTime, setLoadTime] = useState(null);
   const [saveTime, setSaveTime] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 900);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -76,22 +102,30 @@ export default function Home() {
     const startTime = performance.now();
     
     try {
-      const leavesRes = await fetch(`${SCRIPT_URL}?action=getLeaves`);
-      const leavesData = await leavesRes.json();
-      if (leavesData.success) {
-        setLeaves(leavesData.data);
+      const [leavesData, empData] = await Promise.all([
+        supabaseFetch('leaves', 'GET', null, '?select=*&order=created_at.desc'),
+        supabaseFetch('employees', 'GET', null, '?select=*&order=name.asc')
+      ]);
+      
+      if (Array.isArray(leavesData)) {
+        setLeaves(leavesData.map(l => ({
+          id: l.id,
+          name: l.name,
+          startDate: l.start_date,
+          endDate: l.end_date,
+          createdDate: l.created_date,
+          createdTime: l.created_time
+        })));
       }
       
-      const empRes = await fetch(`${SCRIPT_URL}?action=getEmployees`);
-      const empData = await empRes.json();
-      if (empData.success && empData.data.length > 0) {
-        setEmployees(empData.data);
+      if (Array.isArray(empData) && empData.length > 0) {
+        setEmployees(empData.map(e => e.name));
       }
       
       const endTime = performance.now();
       setLoadTime(Math.round(endTime - startTime));
     } catch (err) {
-      console.log('ใช้ข้อมูล demo');
+      console.log('ใช้ข้อมูล demo:', err);
       setLoadTime(0);
     }
     setLoadingData(false);
@@ -181,37 +215,36 @@ export default function Home() {
     const createdTime = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     
     const newLeave = { 
-      id: Date.now(), 
       name: employee, 
-      startDate, 
-      endDate: endDate || startDate,
-      createdDate,
-      createdTime
+      start_date: startDate, 
+      end_date: endDate || startDate,
+      created_date: createdDate,
+      created_time: createdTime
     };
 
     try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'addLeave', ...newLeave })
-      });
-      const data = await res.json();
+      const result = await supabaseFetch('leaves', 'POST', newLeave);
       
       const endTime = performance.now();
       setSaveTime(Math.round(endTime - startTime));
       
-      if (data.success) {
-        setLeaves([...leaves, newLeave]);
+      if (result && result[0]) {
+        setLeaves([...leaves, {
+          id: result[0].id,
+          name: result[0].name,
+          startDate: result[0].start_date,
+          endDate: result[0].end_date,
+          createdDate: result[0].created_date,
+          createdTime: result[0].created_time
+        }]);
         clear();
         setEmployee('');
         notify(`บันทึกแล้ว (${Math.round(endTime - startTime)} ms)`);
       } else {
-        notify(data.message || 'เกิดข้อผิดพลาด', false);
+        notify('เกิดข้อผิดพลาด', false);
       }
     } catch (err) {
-      setLeaves([...leaves, newLeave]);
-      clear();
-      setEmployee('');
-      notify('บันทึกแล้ว (offline)');
+      notify('เกิดข้อผิดพลาด: ' + err.message, false);
     }
     
     setLoading(false);
@@ -227,16 +260,14 @@ export default function Home() {
     }
 
     try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'addEmployee', name })
-      });
-    } catch (err) {}
-
-    setEmployees([...employees, name]);
-    setNewEmployeeName('');
-    setShowAddEmployee(false);
-    notify('เพิ่มพนักงานแล้ว');
+      await supabaseFetch('employees', 'POST', { name });
+      setEmployees([...employees, name]);
+      setNewEmployeeName('');
+      setShowAddEmployee(false);
+      notify('เพิ่มพนักงานแล้ว');
+    } catch (err) {
+      notify('เกิดข้อผิดพลาด', false);
+    }
   };
 
   const handleMouseEnter = (e, data, dateStr) => {
@@ -252,6 +283,11 @@ export default function Home() {
   const today = new Date().toISOString().slice(0, 10);
   const daysCount = startDate ? (endDate ? Math.ceil((new Date(endDate) - new Date(startDate)) / 864e5) + 1 : 1) : 0;
 
+  const cellHeight = isMobile ? 70 : 110;
+  const cellPadding = isMobile ? 6 : 10;
+  const dayNumSize = isMobile ? 24 : 34;
+  const fontSize = isMobile ? 11 : 15;
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -263,6 +299,7 @@ export default function Home() {
           position: 'fixed',
           top: 20,
           right: 20,
+          left: isMobile ? 20 : 'auto',
           background: toast.ok ? '#1a1a1a' : '#c62828',
           color: 'white',
           padding: '14px 24px',
@@ -270,11 +307,12 @@ export default function Home() {
           fontSize: 14,
           fontWeight: 500,
           zIndex: 999,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          textAlign: 'center'
         }}>{toast.msg}</div>
       )}
       
-      {tooltip && (
+      {tooltip && !isMobile && (
         <div style={{
           position: 'fixed',
           left: tooltip.x,
@@ -307,33 +345,36 @@ export default function Home() {
       <header style={{
         background: '#1a1a1a',
         color: 'white',
-        padding: '16px 28px',
+        padding: isMobile ? '12px 16px' : '16px 28px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
       }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>📅 ระบบลาพักร้อน</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <h1 style={{ fontSize: isMobile ? 16 : 20, fontWeight: 600, margin: 0 }}>📅 ระบบลาพักร้อน</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
           {loadTime !== null && (
             <span style={{ background: '#4caf50', color: 'white', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500 }}>
-              โหลด: {loadTime} ms
+              {loadTime} ms
             </span>
           )}
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#4fc3f7', letterSpacing: 1 }}>QC TEAM</span>
+          <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 600, color: '#4fc3f7', letterSpacing: 1 }}>QC TEAM</span>
         </div>
       </header>
 
       <div style={{
         maxWidth: 1300,
         margin: '0 auto',
-        padding: 28,
-        display: 'grid',
-        gridTemplateColumns: '340px 1fr',
-        gap: 28,
-        alignItems: 'start'
+        padding: isMobile ? 12 : 28,
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 16 : 28,
+        alignItems: 'flex-start'
       }}>
-        <aside>
+        <aside style={{ 
+          width: isMobile ? '100%' : 340,
+          order: isMobile ? 2 : 1
+        }}>
           <div style={{
             background: 'white',
             border: '3px solid #888',
@@ -503,7 +544,11 @@ export default function Home() {
           </div>
         </aside>
 
-        <main>
+        <main style={{ 
+          flex: 1,
+          width: isMobile ? '100%' : 'auto',
+          order: isMobile ? 1 : 2
+        }}>
           <div style={{
             background: 'white',
             border: '3px solid #888',
@@ -514,7 +559,7 @@ export default function Home() {
             <div style={{
               background: '#1a1a1a',
               color: 'white',
-              padding: '16px 24px',
+              padding: isMobile ? '12px 16px' : '16px 24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -522,8 +567,8 @@ export default function Home() {
               <button 
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1))}
                 style={{
-                  width: 44,
-                  height: 44,
+                  width: isMobile ? 36 : 44,
+                  height: isMobile ? 36 : 44,
                   background: 'rgba(255,255,255,0.2)',
                   border: '2px solid rgba(255,255,255,0.4)',
                   borderRadius: 10,
@@ -534,14 +579,14 @@ export default function Home() {
                 }}
               >◄</button>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 24, fontWeight: 700 }}>{thaiMonths[month.getMonth()]}</div>
-                <div style={{ fontSize: 16, opacity: 0.8 }}>{month.getFullYear() + 543}</div>
+                <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700 }}>{thaiMonths[month.getMonth()]}</div>
+                <div style={{ fontSize: isMobile ? 14 : 16, opacity: 0.8 }}>{month.getFullYear() + 543}</div>
               </div>
               <button 
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1))}
                 style={{
-                  width: 44,
-                  height: 44,
+                  width: isMobile ? 36 : 44,
+                  height: isMobile ? 36 : 44,
                   background: 'rgba(255,255,255,0.2)',
                   border: '2px solid rgba(255,255,255,0.4)',
                   borderRadius: 10,
@@ -573,9 +618,9 @@ export default function Home() {
             }}>
               {days.map((d, i) => (
                 <div key={d} style={{
-                  padding: 14,
+                  padding: isMobile ? 8 : 14,
                   textAlign: 'center',
-                  fontSize: 15,
+                  fontSize: isMobile ? 12 : 15,
                   fontWeight: 700,
                   color: i === 0 || i === 6 ? '#c62828' : '#333'
                 }}>{d}</div>
@@ -590,11 +635,11 @@ export default function Home() {
               {calendar.map((day, i) => {
                 if (!day) return (
                   <div key={`e${i}`} style={{
-                    minHeight: 110,
-                    padding: 10,
-                    borderRight: i % 7 === 6 ? 'none' : '2px solid #bbb',
-                    borderBottom: '2px solid #bbb',
-                    background: '#f0f0f0'
+                    minHeight: cellHeight,
+                    padding: cellPadding,
+                    borderRight: i % 7 === 6 ? 'none' : '1px solid #ddd',
+                    borderBottom: '1px solid #ddd',
+                    background: '#f5f5f5'
                   }} />
                 );
                 
@@ -620,15 +665,15 @@ export default function Home() {
                     key={day}
                     onClick={() => canClick && handleClick(day)}
                     onMouseEnter={(e) => {
-                      if (hasLeave) handleMouseEnter(e, data, dateStr);
+                      if (hasLeave && !isMobile) handleMouseEnter(e, data, dateStr);
                       if (startDate && !endDate && canClick) setHover(dateStr);
                     }}
                     onMouseLeave={() => { setTooltip(null); setHover(null); }}
                     style={{
-                      minHeight: 110,
-                      padding: 10,
-                      borderRight: (i + 1) % 7 === 0 ? 'none' : '2px solid #bbb',
-                      borderBottom: '2px solid #bbb',
+                      minHeight: cellHeight,
+                      padding: cellPadding,
+                      borderRight: (i + 1) % 7 === 0 ? 'none' : '1px solid #ddd',
+                      borderBottom: '1px solid #ddd',
                       display: 'flex',
                       flexDirection: 'column',
                       background: cellBg,
@@ -636,32 +681,35 @@ export default function Home() {
                     }}
                   >
                     <span style={{
-                      width: 34,
-                      height: 34,
+                      width: dayNumSize,
+                      height: dayNumSize,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 16,
+                      fontSize: isMobile ? 12 : 16,
                       fontWeight: 700,
                       color: (start || end) ? 'white' : isToday ? '#e65100' : weekend ? '#c62828' : '#333',
-                      borderRadius: 8,
+                      borderRadius: 6,
                       background: (start || end) ? 'transparent' : isToday ? '#fff' : 'transparent'
                     }}>{day}</span>
                     
                     {hasLeave && (
-                      <div style={{ flex: 1, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ flex: 1, marginTop: isMobile ? 4 : 8, display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4 }}>
                         {data.map((item, j) => (
                           <div key={j} style={{
                             backgroundColor: getEmployeeColor(item.name),
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            fontSize: 15,
+                            padding: isMobile ? '4px 2px' : '10px 12px',
+                            borderRadius: isMobile ? 4 : 8,
+                            fontSize: fontSize,
                             fontWeight: 700,
                             color: '#ffffff',
                             textAlign: 'center',
-                            letterSpacing: 1
+                            letterSpacing: isMobile ? 0 : 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}>
-                            {item.name}
+                            {isMobile ? item.name.slice(0, 4) : item.name}
                           </div>
                         ))}
                       </div>
@@ -673,19 +721,21 @@ export default function Home() {
 
             <div style={{
               display: 'flex',
-              gap: 24,
-              padding: '16px 24px',
+              gap: isMobile ? 12 : 24,
+              padding: isMobile ? '12px 16px' : '16px 24px',
               background: '#f0f0f0',
-              borderTop: '3px solid #888'
+              borderTop: '3px solid #888',
+              flexWrap: 'wrap',
+              justifyContent: isMobile ? 'center' : 'flex-start'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 20, height: 20, borderRadius: 5, background: '#fff8e1', border: '3px solid #ffb74d' }}></span> มีคนลา
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
+                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#fff8e1', border: '2px solid #ffb74d' }}></span> มีคนลา
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 20, height: 20, borderRadius: 5, background: '#1a1a1a' }}></span> วันที่เลือก
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
+                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#1a1a1a' }}></span> วันที่เลือก
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 20, height: 20, borderRadius: 5, background: '#e65100' }}></span> วันนี้
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
+                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#e65100' }}></span> วันนี้
               </div>
             </div>
           </div>
