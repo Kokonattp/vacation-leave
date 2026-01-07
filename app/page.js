@@ -88,8 +88,6 @@ export default function Home() {
   const [loadingData, setLoadingData] = useState(true);
   const [toast, setToast] = useState(null);
   const [tooltip, setTooltip] = useState(null);
-  const [showAddEmployee, setShowAddEmployee] = useState(false);
-  const [newEmployeeName, setNewEmployeeName] = useState('');
   const [loadTime, setLoadTime] = useState(null);
   const [saveTime, setSaveTime] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -178,7 +176,7 @@ export default function Home() {
   };
 
   const handleClick = (day) => {
-    if (!day || !employee) return;
+    if (!day) return;
     const dateStr = toLocalDateStr(new Date(month.getFullYear(), month.getMonth(), day));
     
     if (leaveMap.has(dateStr)) {
@@ -189,6 +187,7 @@ export default function Home() {
     if (!startDate || (startDate && endDate)) {
       setStartDate(dateStr);
       setEndDate(null);
+      setEmployee(''); // reset ชื่อพนักงานเมื่อเลือกวันใหม่
     } else {
       if (dateStr < startDate) {
         setStartDate(dateStr);
@@ -218,7 +217,7 @@ export default function Home() {
   const isStart = (dateStr) => dateStr === startDate;
   const isEnd = (dateStr) => dateStr === (endDate || (hover && hover > startDate ? hover : null));
 
-  const clear = () => { setStartDate(null); setEndDate(null); };
+  const clear = () => { setStartDate(null); setEndDate(null); setEmployee(''); };
 
   const submit = async () => {
     if (!employee || !startDate) return;
@@ -254,7 +253,6 @@ export default function Home() {
           createdTime: result[0].created_time
         }]);
         clear();
-        setEmployee('');
         notify(`บันทึกแล้ว (${Math.round(endTime - startTime)} ms)`);
       } else if (result.message) {
         notify(result.message, false);
@@ -264,26 +262,6 @@ export default function Home() {
     }
     
     setLoading(false);
-  };
-
-  const addEmployee = async () => {
-    if (!newEmployeeName.trim()) return;
-    
-    const name = newEmployeeName.trim();
-    if (employees.includes(name)) {
-      notify('มีชื่อนี้แล้ว', false);
-      return;
-    }
-
-    try {
-      await supabaseFetch('employees', 'POST', { name });
-      setEmployees([...employees, name]);
-      setNewEmployeeName('');
-      setShowAddEmployee(false);
-      notify('เพิ่มพนักงานแล้ว');
-    } catch (err) {
-      notify('เกิดข้อผิดพลาด', false);
-    }
   };
 
   const handleMouseEnter = (e, data, dateStr) => {
@@ -416,74 +394,30 @@ export default function Home() {
               fontWeight: 600,
               color: '#5d4037'
             }}>
-              {!employee ? '① เลือกพนักงานก่อน' : !startDate ? '② คลิกวันเริ่มต้นในปฏิทิน' : !endDate ? '③ คลิกวันสิ้นสุด หรือบันทึกเลย' : '✓ พร้อมบันทึก!'}
+              {!startDate ? '① คลิกวันเริ่มต้นในปฏิทิน' : !endDate ? '② คลิกวันสิ้นสุด หรือพิมพ์ชื่อเลย' : !employee ? '③ พิมพ์ชื่อพนักงาน' : '✓ พร้อมบันทึก!'}
             </div>
 
-            <div style={{ margin: '20px 20px 0' }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>พนักงาน</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select 
+            {startDate && (
+              <div style={{ margin: '20px 20px 0' }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>ชื่อพนักงาน</label>
+                <input 
+                  type="text"
                   value={employee} 
-                  onChange={e => { setEmployee(e.target.value); clear(); }}
+                  onChange={e => setEmployee(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && employee && submit()}
+                  placeholder="พิมพ์ชื่อพนักงาน..."
+                  autoFocus
                   style={{
-                    flex: 1,
+                    width: '100%',
                     padding: '14px 16px',
                     fontSize: 15,
                     fontFamily: 'inherit',
-                    border: '3px solid #999',
+                    border: '3px solid #1976d2',
                     borderRadius: 10,
                     background: 'white',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="">-- เลือกพนักงาน --</option>
-                  {employees.map(n => <option key={n}>{n}</option>)}
-                </select>
-                <button 
-                  onClick={() => setShowAddEmployee(true)}
-                  style={{
-                    width: 52,
-                    background: '#2e7d32',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontSize: 26,
-                    cursor: 'pointer',
-                    fontWeight: 700
-                  }}
-                >+</button>
-              </div>
-            </div>
-
-            {showAddEmployee && (
-              <div style={{
-                margin: '12px 20px 0',
-                padding: 14,
-                background: '#e8f5e9',
-                border: '3px solid #4caf50',
-                borderRadius: 10
-              }}>
-                <input 
-                  type="text" 
-                  placeholder="ชื่อพนักงานใหม่"
-                  value={newEmployeeName}
-                  onChange={e => setNewEmployeeName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addEmployee()}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    border: '2px solid #999',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontFamily: 'inherit',
-                    marginBottom: 10,
                     boxSizing: 'border-box'
                   }}
                 />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={addEmployee} style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 600, background: '#4caf50', color: 'white' }}>เพิ่ม</button>
-                  <button onClick={() => { setShowAddEmployee(false); setNewEmployeeName(''); }} style={{ flex: 1, padding: 10, border: 'none', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 600, background: '#e0e0e0', color: '#333' }}>ยกเลิก</button>
-                </div>
               </div>
             )}
 
@@ -679,7 +613,7 @@ export default function Home() {
                 const range = inRange(dateStr);
                 const start = isStart(dateStr);
                 const end = isEnd(dateStr);
-                const canClick = employee && !hasLeave;
+                const canClick = !hasLeave;
 
                 let cellBg = 'white';
                 if (start || end) cellBg = '#1a1a1a';
