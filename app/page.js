@@ -184,7 +184,20 @@ export default function Home() {
 
   const handleClick = (day) => {
     if (!day) return;
+    
+    // ป้องกันคลิกขณะกำลังโหลดข้อมูล
+    if (loadingData) {
+      notify('กรุณารอโหลดข้อมูลก่อน', false);
+      return;
+    }
+    
     const dateStr = toLocalDateStr(new Date(month.getFullYear(), month.getMonth(), day));
+
+    // เช็คว่าวันนี้มีคนลาแล้วหรือไม่
+    if (leaveMap.has(dateStr)) {
+      notify('วันนี้มีคนลาแล้ว', false);
+      return;
+    }
 
     if (!startDate || (startDate && endDate)) {
       setStartDate(dateStr);
@@ -192,8 +205,22 @@ export default function Home() {
       setEmployee('');
     } else {
       if (dateStr < startDate) {
+        // เช็คว่าวันใหม่ที่เลือกมีคนลาไหม
+        if (leaveMap.has(dateStr)) {
+          notify('วันนี้มีคนลาแล้ว', false);
+          return;
+        }
         setStartDate(dateStr);
       } else {
+        // เช็คทุกวันในช่วงที่เลือกว่ามีคนลาอยู่ไหม
+        let d = new Date(startDate + 'T00:00:00');
+        while (d <= new Date(dateStr + 'T00:00:00')) {
+          if (leaveMap.has(toLocalDateStr(d))) {
+            notify('ช่วงนี้มีวันที่ลาแล้ว', false);
+            return;
+          }
+          d.setDate(d.getDate() + 1);
+        }
         setEndDate(dateStr);
       }
     }
@@ -825,7 +852,7 @@ export default function Home() {
                 const range = inRange(dateStr);
                 const start = isStart(dateStr);
                 const end = isEnd(dateStr);
-                const canClick = true;
+                const canClick = !hasLeave && !loadingData;
                 const isHovered = hoverCell === dateStr;
 
                 let cellBg = 'white';
