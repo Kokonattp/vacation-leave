@@ -17,23 +17,31 @@ const defaultEmployees = [
   'อภินันท์'
 ];
 
-// สีพื้นหลังสำหรับแต่ละพนักงาน
-const employeeColors = {
-  'จุฑามาศ': '#c62828',
-  'ขนิษฐา': '#1565c0',
-  'ณัฐธิดา': '#2e7d32',
-  'วรรณา': '#6a1b9a',
-  'จารุวรรณ': '#e65100',
-  'นริศรา': '#00838f',
-  'อภินันท์': '#4527a0'
+// สีพื้นหลังสำหรับแต่ละพนักงาน - Modern gradient colors
+const employeeGradients = {
+  'จุฑามาศ': 'linear-gradient(135deg, #ff6b6b, #ee5a5a)',
+  'ขนิษฐา': 'linear-gradient(135deg, #4facfe, #00f2fe)',
+  'ณัฐธิดา': 'linear-gradient(135deg, #43e97b, #38f9d7)',
+  'วรรณา': 'linear-gradient(135deg, #a855f7, #6366f1)',
+  'จารุวรรณ': 'linear-gradient(135deg, #f97316, #facc15)',
+  'นริศรา': 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+  'อภินันท์': 'linear-gradient(135deg, #8b5cf6, #d946ef)'
 };
 
-const extraColors = ['#d84315', '#00695c', '#283593', '#ad1457', '#558b2f', '#7b1fa2', '#1976d2'];
+const extraGradients = [
+  'linear-gradient(135deg, #f43f5e, #fb7185)',
+  'linear-gradient(135deg, #14b8a6, #22d3ee)',
+  'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  'linear-gradient(135deg, #ec4899, #f472b6)',
+  'linear-gradient(135deg, #84cc16, #a3e635)',
+  'linear-gradient(135deg, #f59e0b, #fbbf24)',
+  'linear-gradient(135deg, #0ea5e9, #38bdf8)'
+];
 
-const getEmployeeColor = (name) => {
-  if (employeeColors[name]) return employeeColors[name];
-  const index = name.length % extraColors.length;
-  return extraColors[index];
+const getEmployeeGradient = (name) => {
+  if (employeeGradients[name]) return employeeGradients[name];
+  const index = name.length % extraGradients.length;
+  return extraGradients[index];
 };
 
 const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -51,7 +59,6 @@ const formatThaiDateFull = (dateStr) => {
   return `${d.getDate()} ${thaiMonthsShort[d.getMonth()]} ${year}`;
 };
 
-// ฟังก์ชันสร้าง date string จาก local date (ไม่ใช้ UTC)
 const toLocalDateStr = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -59,7 +66,6 @@ const toLocalDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-// Supabase API functions
 const supabaseFetch = async (table, method = 'GET', body = null, query = '') => {
   const options = {
     method,
@@ -92,6 +98,7 @@ export default function Home() {
   const [saveTime, setSaveTime] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState(null);
+  const [hoverCell, setHoverCell] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 900);
@@ -178,28 +185,15 @@ export default function Home() {
   const handleClick = (day) => {
     if (!day) return;
     const dateStr = toLocalDateStr(new Date(month.getFullYear(), month.getMonth(), day));
-    
-    if (leaveMap.has(dateStr)) {
-      notify('วันนี้มีคนลาแล้ว', false);
-      return;
-    }
 
     if (!startDate || (startDate && endDate)) {
       setStartDate(dateStr);
       setEndDate(null);
-      setEmployee(''); // reset ชื่อพนักงานเมื่อเลือกวันใหม่
+      setEmployee('');
     } else {
       if (dateStr < startDate) {
         setStartDate(dateStr);
       } else {
-        let d = new Date(startDate + 'T00:00:00');
-        while (d <= new Date(dateStr + 'T00:00:00')) {
-          if (leaveMap.has(toLocalDateStr(d))) {
-            notify('ช่วงนี้มีวันที่ลาแล้ว', false);
-            return;
-          }
-          d.setDate(d.getDate() + 1);
-        }
         setEndDate(dateStr);
       }
     }
@@ -277,129 +271,236 @@ export default function Home() {
   const today = toLocalDateStr(new Date());
   const daysCount = startDate ? (endDate ? Math.ceil((new Date(endDate) - new Date(startDate)) / 864e5) + 1 : 1) : 0;
 
-  const cellHeight = isMobile ? 70 : 110;
+  const cellHeight = isMobile ? 70 : 120;
   const cellPadding = isMobile ? 6 : 10;
-  const dayNumSize = isMobile ? 24 : 34;
-  const fontSize = isMobile ? 11 : 15;
+  const dayNumSize = isMobile ? 24 : 36;
+  const fontSize = isMobile ? 10 : 13;
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#d0d0d0',
-      fontFamily: "'Prompt', sans-serif"
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+      fontFamily: "'Prompt', 'Noto Sans Thai', sans-serif",
+      position: 'relative',
+      overflow: 'hidden'
     }}>
+      {/* Background decorations */}
+      <div style={{
+        position: 'fixed',
+        top: '-20%',
+        right: '-10%',
+        width: '50vw',
+        height: '50vw',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '-20%',
+        left: '-10%',
+        width: '60vw',
+        height: '60vw',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
+
+      {/* Toast notification */}
       {toast && (
         <div style={{
           position: 'fixed',
-          top: 20,
-          right: 20,
-          left: isMobile ? 20 : 'auto',
-          background: toast.ok ? '#1a1a1a' : '#c62828',
+          top: 24,
+          right: 24,
+          left: isMobile ? 24 : 'auto',
+          background: toast.ok 
+            ? 'linear-gradient(135deg, #10b981, #059669)' 
+            : 'linear-gradient(135deg, #ef4444, #dc2626)',
           color: 'white',
-          padding: '14px 24px',
-          borderRadius: 10,
-          fontSize: 14,
-          fontWeight: 500,
+          padding: '16px 28px',
+          borderRadius: 16,
+          fontSize: 15,
+          fontWeight: 600,
           zIndex: 999,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          textAlign: 'center'
+          boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+          backdropFilter: 'blur(10px)',
+          animation: 'slideIn 0.3s ease-out'
         }}>{toast.msg}</div>
       )}
       
+      {/* Tooltip */}
       {tooltip && !isMobile && (
         <div style={{
           position: 'fixed',
           left: tooltip.x,
           top: tooltip.y,
           transform: 'translate(-50%, -100%)',
-          background: '#1a1a1a',
+          background: 'rgba(15, 23, 42, 0.95)',
+          backdropFilter: 'blur(20px)',
           color: 'white',
-          padding: '14px 18px',
-          borderRadius: 12,
+          padding: '18px 22px',
+          borderRadius: 16,
           zIndex: 1000,
-          boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
-          minWidth: 220,
-          border: '2px solid #333'
+          boxShadow: '0 25px 50px rgba(0,0,0,0.4)',
+          minWidth: 240,
+          border: '1px solid rgba(255,255,255,0.1)'
         }}>
-          <div style={{ fontSize: 13, color: '#999', marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #444' }}>
-            วันลา: {formatThaiDateFull(tooltip.date)}
+          <div style={{ 
+            fontSize: 13, 
+            color: 'rgba(255,255,255,0.6)', 
+            marginBottom: 12, 
+            paddingBottom: 12, 
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            <span style={{ fontSize: 16 }}>📅</span>
+            {formatThaiDateFull(tooltip.date)}
           </div>
           {tooltip.data.map((item, i) => (
-            <div key={i} style={{ padding: '8px 0', borderBottom: i < tooltip.data.length - 1 ? '1px solid #333' : 'none' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 3, background: getEmployeeColor(item.name) }}></span>
+            <div key={i} style={{ 
+              padding: '10px 0', 
+              borderBottom: i < tooltip.data.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' 
+            }}>
+              <div style={{ 
+                fontSize: 16, 
+                fontWeight: 700, 
+                marginBottom: 6, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 10 
+              }}>
+                <span style={{ 
+                  width: 14, 
+                  height: 14, 
+                  borderRadius: 6, 
+                  background: getEmployeeGradient(item.name),
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                }}></span>
                 {item.name}
               </div>
-              <div style={{ fontSize: 12, color: '#aaa' }}>บันทึกเมื่อ {formatThaiDateFull(item.createdDate)} เวลา {item.createdTime} น.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', paddingLeft: 24 }}>
+                บันทึกเมื่อ {formatThaiDateFull(item.createdDate)} • {item.createdTime} น.
+              </div>
             </div>
           ))}
         </div>
       )}
       
+      {/* Header */}
       <header style={{
-        background: '#1a1a1a',
+        background: 'rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(20px)',
         color: 'white',
-        padding: isMobile ? '12px 16px' : '16px 28px',
+        padding: isMobile ? '16px 20px' : '20px 32px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+        borderBottom: '1px solid rgba(255,255,255,0.1)'
       }}>
-        <h1 style={{ fontSize: isMobile ? 16 : 20, fontWeight: 600, margin: 0 }}>📅 ระบบลาพักร้อน</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+        <h1 style={{ 
+          fontSize: isMobile ? 18 : 24, 
+          fontWeight: 700, 
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          textShadow: '0 2px 10px rgba(0,0,0,0.2)'
+        }}>
+          <span style={{ 
+            fontSize: isMobile ? 24 : 32,
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+          }}>🏖️</span>
+          ระบบลาพักร้อน
+        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16 }}>
           {loadTime !== null && (
-            <span style={{ background: '#4caf50', color: 'white', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500 }}>
-              {loadTime} ms
+            <span style={{ 
+              background: 'rgba(16, 185, 129, 0.9)', 
+              color: 'white', 
+              padding: '6px 14px', 
+              borderRadius: 20, 
+              fontSize: 12, 
+              fontWeight: 600,
+              boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
+            }}>
+              ⚡ {loadTime} ms
             </span>
           )}
-          <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 600, color: '#4fc3f7', letterSpacing: 1 }}>QC TEAM</span>
+          <span style={{ 
+            fontSize: isMobile ? 13 : 15, 
+            fontWeight: 700, 
+            background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: 1
+          }}>QC TEAM</span>
         </div>
       </header>
 
       <div style={{
-        maxWidth: 1300,
+        maxWidth: 1400,
         margin: '0 auto',
-        padding: isMobile ? 12 : 28,
+        padding: isMobile ? 16 : 32,
         display: isMobile ? 'flex' : 'grid',
         flexDirection: isMobile ? 'column' : undefined,
-        gridTemplateColumns: isMobile ? undefined : '340px 1fr',
-        gap: isMobile ? 16 : 28,
+        gridTemplateColumns: isMobile ? undefined : '360px 1fr',
+        gap: isMobile ? 20 : 32,
         alignItems: 'start'
       }}>
-        {/* ฟอร์มลงทะเบียน */}
+        {/* Sidebar */}
         <aside style={{ width: '100%' }}>
           <div style={{
-            background: 'white',
-            border: '3px solid #888',
-            borderRadius: 16,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-            paddingBottom: 20
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: 24,
+            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
+            overflow: 'hidden'
           }}>
             <div style={{
-              background: '#1a1a1a',
+              background: 'linear-gradient(135deg, #1e293b, #334155)',
               color: 'white',
-              padding: '16px 20px',
-              fontSize: 16,
-              fontWeight: 600,
-              borderRadius: '13px 13px 0 0'
-            }}>ลงทะเบียนลา</div>
+              padding: '20px 24px',
+              fontSize: 17,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <span style={{ fontSize: 20 }}>✍️</span>
+              ลงทะเบียนลา
+            </div>
             
             <div style={{
-              margin: '18px 20px 0',
-              padding: '14px 16px',
-              background: '#fffde7',
-              border: '3px solid #fbc02d',
-              borderRadius: 10,
+              margin: '20px 20px 0',
+              padding: '16px 18px',
+              background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+              borderRadius: 14,
               fontSize: 14,
               fontWeight: 600,
-              color: '#5d4037'
+              color: '#92400e',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              boxShadow: '0 4px 15px rgba(251, 191, 36, 0.2)'
             }}>
-              {!startDate ? '① คลิกวันเริ่มต้นในปฏิทิน' : !endDate ? '② คลิกวันสิ้นสุด หรือพิมพ์ชื่อเลย' : !employee ? '③ พิมพ์ชื่อพนักงาน' : '✓ พร้อมบันทึก!'}
+              <span style={{ fontSize: 18 }}>
+                {!startDate ? '👆' : !endDate ? '📅' : !employee ? '✏️' : '✅'}
+              </span>
+              {!startDate ? 'คลิกวันเริ่มต้นในปฏิทิน' : !endDate ? 'คลิกวันสิ้นสุด หรือพิมพ์ชื่อเลย' : !employee ? 'พิมพ์ชื่อพนักงาน' : 'พร้อมบันทึก!'}
             </div>
 
             {startDate && (
               <div style={{ margin: '20px 20px 0' }}>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#333', marginBottom: 8 }}>ชื่อพนักงาน</label>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 13, 
+                  fontWeight: 700, 
+                  color: '#475569', 
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1
+                }}>ชื่อพนักงาน</label>
                 <input 
                   type="text"
                   value={employee} 
@@ -409,13 +510,23 @@ export default function Home() {
                   autoFocus
                   style={{
                     width: '100%',
-                    padding: '14px 16px',
-                    fontSize: 15,
+                    padding: '16px 20px',
+                    fontSize: 16,
                     fontFamily: 'inherit',
-                    border: '3px solid #1976d2',
-                    borderRadius: 10,
+                    border: '2px solid #e2e8f0',
+                    borderRadius: 14,
                     background: 'white',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease',
+                    outline: 'none'
+                  }}
+                  onFocus={e => {
+                    e.target.style.borderColor = '#8b5cf6';
+                    e.target.style.boxShadow = '0 0 0 4px rgba(139, 92, 246, 0.1)';
+                  }}
+                  onBlur={e => {
+                    e.target.style.borderColor = '#e2e8f0';
+                    e.target.style.boxShadow = 'none';
                   }}
                 />
               </div>
@@ -424,88 +535,139 @@ export default function Home() {
             {startDate && (
               <div style={{
                 margin: '20px 20px 0',
-                padding: 18,
-                background: '#e3f2fd',
-                border: '3px solid #1976d2',
-                borderRadius: 12
+                padding: 20,
+                background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)',
+                borderRadius: 16,
+                boxShadow: '0 4px 15px rgba(139, 92, 246, 0.1)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, color: '#1565c0', marginBottom: 4, fontWeight: 500 }}>เริ่มต้น</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#0d47a1' }}>{formatThaiDate(startDate)}</div>
+                    <div style={{ fontSize: 11, color: '#7c3aed', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>เริ่มต้น</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#5b21b6' }}>{formatThaiDate(startDate)}</div>
                   </div>
                   {endDate && (
                     <>
-                      <div style={{ fontSize: 22, color: '#1976d2' }}>➜</div>
+                      <div style={{ 
+                        fontSize: 24, 
+                        color: '#8b5cf6',
+                        background: 'white',
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 10px rgba(139, 92, 246, 0.2)'
+                      }}>→</div>
                       <div style={{ flex: 1, textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#1565c0', marginBottom: 4, fontWeight: 500 }}>สิ้นสุด</div>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: '#0d47a1' }}>{formatThaiDate(endDate)}</div>
+                        <div style={{ fontSize: 11, color: '#7c3aed', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>สิ้นสุด</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: '#5b21b6' }}>{formatThaiDate(endDate)}</div>
                       </div>
                     </>
                   )}
                 </div>
-                <div style={{ marginTop: 14, textAlign: 'center', fontSize: 36, fontWeight: 700, color: '#0d47a1' }}>{daysCount} วัน</div>
+                <div style={{ 
+                  marginTop: 16, 
+                  textAlign: 'center', 
+                  fontSize: 42, 
+                  fontWeight: 800, 
+                  background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}>{daysCount} วัน</div>
               </div>
             )}
 
-            <div style={{ margin: '20px 20px 0', display: 'flex', gap: 10 }}>
+            <div style={{ margin: '20px 20px', display: 'flex', gap: 12 }}>
               <button 
                 onClick={submit} 
                 disabled={loading || !startDate || !employee}
                 style={{
                   flex: 1,
-                  padding: '14px 20px',
-                  background: loading || !startDate || !employee ? '#aaa' : '#1a1a1a',
+                  padding: '16px 24px',
+                  background: loading || !startDate || !employee 
+                    ? '#cbd5e1' 
+                    : 'linear-gradient(135deg, #8b5cf6, #6366f1)',
                   color: 'white',
                   border: 'none',
-                  borderRadius: 10,
-                  fontSize: 15,
-                  fontWeight: 600,
+                  borderRadius: 14,
+                  fontSize: 16,
+                  fontWeight: 700,
                   fontFamily: 'inherit',
-                  cursor: loading || !startDate || !employee ? 'not-allowed' : 'pointer'
+                  cursor: loading || !startDate || !employee ? 'not-allowed' : 'pointer',
+                  boxShadow: loading || !startDate || !employee 
+                    ? 'none' 
+                    : '0 10px 30px rgba(99, 102, 241, 0.4)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
                 }}
               >
-                {loading ? 'กำลังบันทึก...' : '💾 บันทึก'}
+                {loading ? (
+                  <>
+                    <span style={{ 
+                      width: 18, 
+                      height: 18, 
+                      border: '2px solid rgba(255,255,255,0.3)', 
+                      borderTopColor: 'white',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite'
+                    }}></span>
+                    กำลังบันทึก...
+                  </>
+                ) : (
+                  <>💾 บันทึก</>
+                )}
               </button>
               {startDate && (
                 <button 
                   onClick={clear}
                   style={{
-                    padding: '14px 18px',
+                    padding: '16px 20px',
                     background: 'white',
-                    color: '#333',
-                    border: '3px solid #999',
-                    borderRadius: 10,
-                    fontSize: 15,
+                    color: '#64748b',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: 14,
+                    fontSize: 16,
                     fontWeight: 600,
                     fontFamily: 'inherit',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
                   }}
                 >ล้าง</button>
               )}
             </div>
             
             {saveTime !== null && (
-              <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#4caf50', fontWeight: 500 }}>
-                บันทึกใช้เวลา {saveTime} ms
+              <div style={{ 
+                marginBottom: 20, 
+                textAlign: 'center', 
+                fontSize: 13, 
+                color: '#10b981', 
+                fontWeight: 600 
+              }}>
+                ⚡ บันทึกใช้เวลา {saveTime} ms
               </div>
             )}
           </div>
         </aside>
 
-        {/* ปฏิทิน */}
+        {/* Calendar */}
         <main style={{ width: '100%' }}>
           <div style={{
-            background: 'white',
-            border: '3px solid #888',
-            borderRadius: 16,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: 24,
+            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
             overflow: 'hidden'
           }}>
+            {/* Calendar header */}
             <div style={{
-              background: '#1a1a1a',
+              background: 'linear-gradient(135deg, #1e293b, #334155)',
               color: 'white',
-              padding: isMobile ? '12px 16px' : '16px 24px',
+              padding: isMobile ? '16px 20px' : '24px 32px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -513,94 +675,144 @@ export default function Home() {
               <button 
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1))}
                 style={{
-                  width: isMobile ? 36 : 44,
-                  height: isMobile ? 36 : 44,
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  borderRadius: 10,
+                  width: isMobile ? 44 : 52,
+                  height: isMobile ? 44 : 52,
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 14,
                   color: 'white',
-                  fontSize: 18,
+                  fontSize: 20,
                   cursor: 'pointer',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
-              >◄</button>
+                onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
+              >◀</button>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 700 }}>{thaiMonths[month.getMonth()]}</div>
-                <div style={{ fontSize: isMobile ? 14 : 16, opacity: 0.8 }}>{month.getFullYear() + 543}</div>
+                <div style={{ 
+                  fontSize: isMobile ? 22 : 30, 
+                  fontWeight: 800,
+                  textShadow: '0 2px 10px rgba(0,0,0,0.2)'
+                }}>{thaiMonths[month.getMonth()]}</div>
+                <div style={{ 
+                  fontSize: isMobile ? 14 : 16, 
+                  opacity: 0.7,
+                  fontWeight: 500,
+                  marginTop: 4
+                }}>พ.ศ. {month.getFullYear() + 543}</div>
               </div>
               <button 
                 onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1))}
                 style={{
-                  width: isMobile ? 36 : 44,
-                  height: isMobile ? 36 : 44,
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  borderRadius: 10,
+                  width: isMobile ? 44 : 52,
+                  height: isMobile ? 44 : 52,
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 14,
                   color: 'white',
-                  fontSize: 18,
+                  fontSize: 20,
                   cursor: 'pointer',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
-              >►</button>
+                onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
+              >▶</button>
             </div>
 
             {loadingData && (
               <div style={{
-                background: '#fff3e0',
-                color: '#e65100',
-                padding: 10,
+                background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                color: '#92400e',
+                padding: 14,
                 textAlign: 'center',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
-                borderBottom: '2px solid #ffb74d'
-              }}>กำลังโหลดข้อมูล...</div>
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10
+              }}>
+                <span style={{ 
+                  width: 18, 
+                  height: 18, 
+                  border: '2px solid rgba(146, 64, 14, 0.3)', 
+                  borderTopColor: '#92400e',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }}></span>
+                กำลังโหลดข้อมูล...
+              </div>
             )}
             
             {error && (
               <div style={{
-                background: '#ffebee',
-                color: '#c62828',
-                padding: 14,
+                background: 'linear-gradient(135deg, #fee2e2, #fecaca)',
+                color: '#dc2626',
+                padding: 16,
                 textAlign: 'center',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
-                borderBottom: '2px solid #ef5350'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12
               }}>
                 ❌ {error}
-                <button onClick={loadData} style={{ marginLeft: 10, padding: '4px 12px', background: '#c62828', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}>ลองใหม่</button>
+                <button onClick={loadData} style={{ 
+                  padding: '8px 16px', 
+                  background: '#dc2626', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: 8, 
+                  cursor: 'pointer', 
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                  fontSize: 13
+                }}>ลองใหม่</button>
               </div>
             )}
 
+            {/* Day headers */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, 1fr)',
-              background: '#f0f0f0',
-              borderBottom: '3px solid #888'
+              background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)'
             }}>
               {days.map((d, i) => (
                 <div key={d} style={{
-                  padding: isMobile ? 8 : 14,
+                  padding: isMobile ? 12 : 18,
                   textAlign: 'center',
-                  fontSize: isMobile ? 12 : 15,
-                  fontWeight: 700,
-                  color: i === 0 || i === 6 ? '#c62828' : '#333'
+                  fontSize: isMobile ? 13 : 15,
+                  fontWeight: 800,
+                  color: i === 0 ? '#ef4444' : i === 6 ? '#f97316' : '#475569',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1
                 }}>{d}</div>
               ))}
             </div>
 
+            {/* Calendar grid */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, 1fr)',
-              background: 'white'
+              background: '#fafafa'
             }}>
               {calendar.map((day, i) => {
                 if (!day) return (
                   <div key={`e${i}`} style={{
                     minHeight: cellHeight,
                     padding: cellPadding,
-                    borderRight: i % 7 === 6 ? 'none' : '1px solid #ddd',
-                    borderBottom: '1px solid #ddd',
-                    background: '#f5f5f5'
+                    borderRight: i % 7 === 6 ? 'none' : '1px solid #f1f5f9',
+                    borderBottom: '1px solid #f1f5f9',
+                    background: '#f8fafc'
                   }} />
                 );
                 
@@ -613,32 +825,48 @@ export default function Home() {
                 const range = inRange(dateStr);
                 const start = isStart(dateStr);
                 const end = isEnd(dateStr);
-                const canClick = !hasLeave;
+                const canClick = true;
+                const isHovered = hoverCell === dateStr;
 
                 let cellBg = 'white';
-                if (start || end) cellBg = '#1a1a1a';
-                else if (range) cellBg = '#bbdefb';
-                else if (isToday) cellBg = '#e65100';
-                else if (hasLeave) cellBg = '#fff8e1';
+                let cellShadow = 'none';
+                if (start || end) {
+                  cellBg = 'linear-gradient(135deg, #8b5cf6, #6366f1)';
+                  cellShadow = '0 8px 25px rgba(99, 102, 241, 0.4)';
+                } else if (range) {
+                  cellBg = 'linear-gradient(135deg, #ede9fe, #ddd6fe)';
+                } else if (isToday) {
+                  cellBg = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
+                  cellShadow = '0 8px 25px rgba(245, 158, 11, 0.4)';
+                } else if (hasLeave) {
+                  cellBg = 'linear-gradient(135deg, #fef9c3, #fef08a)';
+                } else if (isHovered && canClick) {
+                  cellBg = '#f1f5f9';
+                }
 
                 return (
                   <div 
                     key={day}
                     onClick={() => canClick && handleClick(day)}
                     onMouseEnter={(e) => {
+                      setHoverCell(dateStr);
                       if (hasLeave && !isMobile) handleMouseEnter(e, data, dateStr);
                       if (startDate && !endDate && canClick) setHover(dateStr);
                     }}
-                    onMouseLeave={() => { setTooltip(null); setHover(null); }}
+                    onMouseLeave={() => { setTooltip(null); setHover(null); setHoverCell(null); }}
                     style={{
                       minHeight: cellHeight,
                       padding: cellPadding,
-                      borderRight: (i + 1) % 7 === 0 ? 'none' : '1px solid #ddd',
-                      borderBottom: '1px solid #ddd',
+                      borderRight: (i + 1) % 7 === 0 ? 'none' : '1px solid #f1f5f9',
+                      borderBottom: '1px solid #f1f5f9',
                       display: 'flex',
                       flexDirection: 'column',
                       background: cellBg,
-                      cursor: canClick ? 'pointer' : 'default'
+                      cursor: canClick ? 'pointer' : 'default',
+                      transition: 'all 0.15s ease',
+                      boxShadow: cellShadow,
+                      position: 'relative',
+                      zIndex: (start || end || isToday) ? 2 : 1
                     }}
                   >
                     <span style={{
@@ -647,28 +875,36 @@ export default function Home() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: isMobile ? 12 : 16,
-                      fontWeight: 700,
-                      color: (start || end) ? 'white' : isToday ? 'white' : weekend ? '#c62828' : '#333',
-                      borderRadius: 6,
+                      fontSize: isMobile ? 13 : 17,
+                      fontWeight: 800,
+                      color: (start || end) ? 'white' : isToday ? 'white' : weekend ? (date.getDay() === 0 ? '#ef4444' : '#f97316') : '#334155',
+                      borderRadius: 10,
                       background: 'transparent'
                     }}>{day}</span>
                     
                     {hasLeave && (
-                      <div style={{ flex: 1, marginTop: isMobile ? 4 : 8, display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4 }}>
+                      <div style={{ 
+                        flex: 1, 
+                        marginTop: isMobile ? 4 : 8, 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: isMobile ? 3 : 5 
+                      }}>
                         {data.map((item, j) => (
                           <div key={j} style={{
-                            backgroundColor: getEmployeeColor(item.name),
-                            padding: isMobile ? '4px 2px' : '10px 12px',
-                            borderRadius: isMobile ? 4 : 8,
+                            background: getEmployeeGradient(item.name),
+                            padding: isMobile ? '5px 4px' : '10px 12px',
+                            borderRadius: isMobile ? 6 : 10,
                             fontSize: fontSize,
                             fontWeight: 700,
                             color: '#ffffff',
                             textAlign: 'center',
-                            letterSpacing: isMobile ? 0 : 1,
+                            letterSpacing: isMobile ? 0 : 0.5,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                           }}>
                             {isMobile ? item.name.slice(0, 4) : item.name}
                           </div>
@@ -680,28 +916,45 @@ export default function Home() {
               })}
             </div>
 
+            {/* Legend */}
             <div style={{
               display: 'flex',
-              gap: isMobile ? 12 : 24,
-              padding: isMobile ? '12px 16px' : '16px 24px',
-              background: '#f0f0f0',
-              borderTop: '3px solid #888',
+              gap: isMobile ? 16 : 28,
+              padding: isMobile ? '16px 20px' : '20px 32px',
+              background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
               flexWrap: 'wrap',
               justifyContent: isMobile ? 'center' : 'flex-start'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#fff8e1', border: '2px solid #ffb74d' }}></span> มีคนลา
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: isMobile ? 12 : 14, fontWeight: 600, color: '#475569' }}>
+                <span style={{ width: 20, height: 20, borderRadius: 6, background: 'linear-gradient(135deg, #fef9c3, #fef08a)', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}></span> มีคนลา
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#1a1a1a' }}></span> วันที่เลือก
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: isMobile ? 12 : 14, fontWeight: 600, color: '#475569' }}>
+                <span style={{ width: 20, height: 20, borderRadius: 6, background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)' }}></span> วันที่เลือก
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 11 : 13, fontWeight: 500, color: '#333' }}>
-                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#e65100' }}></span> วันนี้
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: isMobile ? 12 : 14, fontWeight: 600, color: '#475569' }}>
+                <span style={{ width: 20, height: 20, borderRadius: 6, background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)' }}></span> วันนี้
               </div>
             </div>
           </div>
         </main>
       </div>
+
+      {/* CSS Animations */}
+      <style jsx global>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes slideIn {
+          from { 
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
