@@ -101,6 +101,7 @@ export default function Home() {
   const [hoverCell, setHoverCell] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, name, startDate, endDate }
   const [deletedItems, setDeletedItems] = useState([]); // [{ dateStr, name, deletedAt }]
+  const [lockedTooltip, setLockedTooltip] = useState(null); // tooltip ที่ถูก lock ไว้เมื่อคลิก
   const tooltipHoveredRef = useRef(false); // track if mouse is on tooltip
 
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function Home() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  const handleClick = (day) => {
+  const handleClick = (day, e) => {
     if (!day) return;
     
     // ป้องกันคลิกขณะกำลังโหลดข้อมูล
@@ -198,12 +199,29 @@ export default function Home() {
     }
     
     const dateStr = toLocalDateStr(new Date(month.getFullYear(), month.getMonth(), day));
+    const data = leaveMap.get(dateStr);
 
-    // เช็คว่าวันนี้มีคนลาแล้วหรือไม่
-    if (leaveMap.has(dateStr)) {
-      notify('วันนี้มีคนลาแล้ว', false);
+    // ถ้าวันนี้มีคนลา → toggle locked tooltip
+    if (data && data.length > 0) {
+      if (lockedTooltip && lockedTooltip.date === dateStr) {
+        // คลิกซ้ำที่เดิม → ปิด tooltip
+        setLockedTooltip(null);
+      } else {
+        // คลิกวันใหม่ → แสดง tooltip แบบ lock
+        const rect = e.currentTarget.getBoundingClientRect();
+        setLockedTooltip({
+          x: rect.left + rect.width / 2,
+          y: rect.top - 10,
+          data,
+          date: dateStr,
+          isDeleted: false
+        });
+      }
       return;
     }
+
+    // ปิด locked tooltip ถ้ากดที่วันอื่น
+    setLockedTooltip(null);
 
     if (!startDate || (startDate && endDate)) {
       setStartDate(dateStr);
@@ -420,33 +438,64 @@ export default function Home() {
         }}>{toast.msg}</div>
       )}
       
-      {/* Tooltip */}
-      {tooltip && !isMobile && (
+      {/* Tooltip - แสดง lockedTooltip ถ้ามี หรือ hover tooltip */}
+      {((lockedTooltip || tooltip) && !isMobile) && (() => {
+        const activeTooltip = lockedTooltip || tooltip;
+        const isLocked = !!lockedTooltip;
+        return (
         <div 
-          onMouseEnter={() => tooltipHoveredRef.current = true}
+          onMouseEnter={() => { if (!isLocked) tooltipHoveredRef.current = true; }}
           onMouseLeave={() => {
-            tooltipHoveredRef.current = false;
-            setTooltip(null);
-            setHoverCell(null);
+            if (!isLocked) {
+              tooltipHoveredRef.current = false;
+              setTooltip(null);
+              setHoverCell(null);
+            }
           }}
           style={{
           position: 'fixed',
-          left: tooltip.x,
-          top: tooltip.y,
+          left: activeTooltip.x,
+          top: activeTooltip.y,
           transform: 'translate(-50%, -100%)',
-          background: tooltip.isDeleted ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(15, 23, 42, 0.95)',
+          background: activeTooltip.isDeleted ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(15, 23, 42, 0.95)',
           backdropFilter: 'blur(20px)',
           color: 'white',
           padding: '18px 22px',
-          paddingBottom: '28px', // เพิ่ม padding ด้านล่างเพื่อให้เมาส์ hover ได้
+          paddingBottom: '28px',
           borderRadius: 16,
           zIndex: 1000,
-          boxShadow: tooltip.isDeleted ? '0 25px 50px rgba(239, 68, 68, 0.4)' : '0 25px 50px rgba(0,0,0,0.4)',
-          minWidth: tooltip.isDeleted ? 180 : 240,
-          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: activeTooltip.isDeleted ? '0 25px 50px rgba(239, 68, 68, 0.4)' : '0 25px 50px rgba(0,0,0,0.4)',
+          minWidth: activeTooltip.isDeleted ? 180 : 240,
+          border: isLocked ? '2px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
           marginTop: -3
         }}>
+          {/* ปุ่มปิด สำหรับ locked tooltip */}
+          {isLocked && (
+            <button
+              onClick={() => setLockedTooltip(null)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: 24,
+                height: 24,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+                color: 'white',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+              onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+            >✕</button>
+          )}
           {/* Bridge element - ช่วยให้เมาส์เดินทางจาก cell ไป tooltip ได้ */}
+          {!isLocked && (
           <div style={{
             position: 'absolute',
             bottom: -35,
@@ -456,27 +505,28 @@ export default function Home() {
             height: 45,
             background: 'transparent'
           }} />
+          )}
           <div style={{ 
             fontSize: 13, 
             color: 'rgba(255,255,255,0.8)', 
-            marginBottom: tooltip.isDeleted ? 0 : 12, 
-            paddingBottom: tooltip.isDeleted ? 0 : 12, 
-            borderBottom: tooltip.isDeleted ? 'none' : '1px solid rgba(255,255,255,0.1)',
+            marginBottom: activeTooltip.isDeleted ? 0 : 12, 
+            paddingBottom: activeTooltip.isDeleted ? 0 : 12, 
+            borderBottom: activeTooltip.isDeleted ? 'none' : '1px solid rgba(255,255,255,0.1)',
             display: 'flex',
             alignItems: 'center',
             gap: 8
           }}>
-            <span style={{ fontSize: 16 }}>{tooltip.isDeleted ? '🗑️' : '📅'}</span>
-            {tooltip.isDeleted ? (
-              <span style={{ fontWeight: 700, fontSize: 15 }}>ลบรายการลาของ {tooltip.deletedName} แล้ว</span>
+            <span style={{ fontSize: 16 }}>{activeTooltip.isDeleted ? '🗑️' : '📅'}</span>
+            {activeTooltip.isDeleted ? (
+              <span style={{ fontWeight: 700, fontSize: 15 }}>ลบรายการลาของ {activeTooltip.deletedName} แล้ว</span>
             ) : (
-              formatThaiDateFull(tooltip.date)
+              formatThaiDateFull(activeTooltip.date)
             )}
           </div>
-          {!tooltip.isDeleted && tooltip.data.map((item, i) => (
+          {!activeTooltip.isDeleted && activeTooltip.data.map((item, i) => (
             <div key={i} style={{ 
               padding: '10px 0', 
-              borderBottom: i < tooltip.data.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' 
+              borderBottom: i < activeTooltip.data.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' 
             }}>
               <div style={{ 
                 fontSize: 16, 
@@ -502,6 +552,7 @@ export default function Home() {
                     e.stopPropagation();
                     setConfirmDelete({ id: item.id, name: item.name, startDate: item.startDate, endDate: item.endDate });
                     setTooltip(null);
+                    setLockedTooltip(null);
                   }}
                   style={{
                     background: 'linear-gradient(135deg, #ef4444, #dc2626)',
@@ -534,7 +585,8 @@ export default function Home() {
             </div>
           ))}
         </div>
-      )}
+        );
+      })()}
       
       {/* Confirm Delete Dialog */}
       {confirmDelete && (
@@ -1102,17 +1154,17 @@ export default function Home() {
                 return (
                   <div 
                     key={day}
-                    onClick={() => canClick && handleClick(day)}
+                    onClick={(e) => handleClick(day, e)}
                     onMouseEnter={(e) => {
                       setHoverCell(dateStr);
-                      if (hasLeave && !isMobile) handleMouseEnter(e, data, dateStr);
-                      else if (deletedInfo && !isMobile) handleMouseEnter(e, [], dateStr, true, deletedInfo.name);
+                      if (hasLeave && !isMobile && !lockedTooltip) handleMouseEnter(e, data, dateStr);
+                      else if (deletedInfo && !isMobile && !lockedTooltip) handleMouseEnter(e, [], dateStr, true, deletedInfo.name);
                       if (startDate && !endDate && canClick) setHover(dateStr);
                     }}
                     onMouseLeave={() => { 
                       // ใช้ setTimeout เพื่อให้มีเวลาเลื่อนไป tooltip
                       setTimeout(() => {
-                        if (!tooltipHoveredRef.current) {
+                        if (!tooltipHoveredRef.current && !lockedTooltip) {
                           setTooltip(null);
                           setHoverCell(null);
                         }
@@ -1127,7 +1179,7 @@ export default function Home() {
                       display: 'flex',
                       flexDirection: 'column',
                       background: cellBg,
-                      cursor: canClick ? 'pointer' : 'default',
+                      cursor: (canClick || hasLeave) ? 'pointer' : 'default',
                       transition: 'all 0.15s ease',
                       boxShadow: cellShadow,
                       position: 'relative',
