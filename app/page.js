@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 // ===== ตั้งค่า Supabase =====
 const SUPABASE_URL = 'https://kylizhmvqpzdhylzvwog.supabase.co';
@@ -100,6 +100,8 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // { id, name, startDate, endDate }
+  const [deletedItems, setDeletedItems] = useState([]); // [{ dateStr, name, deletedAt }]
+  const tooltipHoveredRef = useRef(false); // track if mouse is on tooltip
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 900);
@@ -292,6 +294,9 @@ export default function Home() {
   const deleteLeave = async (id) => {
     setLoading(true);
     setTooltip(null);
+    
+    // เก็บข้อมูลก่อนลบ
+    const deletingItem = confirmDelete;
     setConfirmDelete(null);
     
     try {
@@ -306,6 +311,28 @@ export default function Home() {
       
       if (res.ok) {
         setLeaves(leaves.filter(l => l.id !== id));
+        
+        // เก็บวันที่ลบไว้แสดง tooltip
+        const deletedDates = [];
+        let d = new Date(deletingItem.startDate + 'T00:00:00');
+        const end = new Date(deletingItem.endDate + 'T00:00:00');
+        while (d <= end) {
+          deletedDates.push({
+            dateStr: toLocalDateStr(d),
+            name: deletingItem.name,
+            deletedAt: new Date()
+          });
+          d.setDate(d.getDate() + 1);
+        }
+        setDeletedItems(prev => [...prev, ...deletedDates]);
+        
+        // ลบข้อมูลที่แสดงหลัง 5 วินาที
+        setTimeout(() => {
+          setDeletedItems(prev => prev.filter(item => 
+            new Date() - item.deletedAt < 5000
+          ));
+        }, 5000);
+        
         notify('ลบรายการลาสำเร็จ');
       } else {
         const error = await res.json();
@@ -318,14 +345,20 @@ export default function Home() {
     setLoading(false);
   };
 
-  const handleMouseEnter = (e, data, dateStr) => {
+  const handleMouseEnter = (e, data, dateStr, isDeleted = false, deletedName = null) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltip({
       x: rect.left + rect.width / 2,
       y: rect.top - 10,
       data,
-      date: dateStr
+      date: dateStr,
+      isDeleted,
+      deletedName
     });
+  };
+  
+  const getDeletedInfo = (dateStr) => {
+    return deletedItems.find(item => item.dateStr === dateStr);
   };
 
   const today = toLocalDateStr(new Date());
@@ -389,35 +422,58 @@ export default function Home() {
       
       {/* Tooltip */}
       {tooltip && !isMobile && (
-        <div style={{
+        <div 
+          onMouseEnter={() => tooltipHoveredRef.current = true}
+          onMouseLeave={() => {
+            tooltipHoveredRef.current = false;
+            setTooltip(null);
+            setHoverCell(null);
+          }}
+          style={{
           position: 'fixed',
           left: tooltip.x,
           top: tooltip.y,
           transform: 'translate(-50%, -100%)',
-          background: 'rgba(15, 23, 42, 0.95)',
+          background: tooltip.isDeleted ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(15, 23, 42, 0.95)',
           backdropFilter: 'blur(20px)',
           color: 'white',
           padding: '18px 22px',
+          paddingBottom: '28px', // เพิ่ม padding ด้านล่างเพื่อให้เมาส์ hover ได้
           borderRadius: 16,
           zIndex: 1000,
-          boxShadow: '0 25px 50px rgba(0,0,0,0.4)',
-          minWidth: 240,
-          border: '1px solid rgba(255,255,255,0.1)'
+          boxShadow: tooltip.isDeleted ? '0 25px 50px rgba(239, 68, 68, 0.4)' : '0 25px 50px rgba(0,0,0,0.4)',
+          minWidth: tooltip.isDeleted ? 180 : 240,
+          border: '1px solid rgba(255,255,255,0.1)',
+          marginTop: -3
         }}>
+          {/* Bridge element - ช่วยให้เมาส์เดินทางจาก cell ไป tooltip ได้ */}
+          <div style={{
+            position: 'absolute',
+            bottom: -35,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 100,
+            height: 45,
+            background: 'transparent'
+          }} />
           <div style={{ 
             fontSize: 13, 
-            color: 'rgba(255,255,255,0.6)', 
-            marginBottom: 12, 
-            paddingBottom: 12, 
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.8)', 
+            marginBottom: tooltip.isDeleted ? 0 : 12, 
+            paddingBottom: tooltip.isDeleted ? 0 : 12, 
+            borderBottom: tooltip.isDeleted ? 'none' : '1px solid rgba(255,255,255,0.1)',
             display: 'flex',
             alignItems: 'center',
             gap: 8
           }}>
-            <span style={{ fontSize: 16 }}>📅</span>
-            {formatThaiDateFull(tooltip.date)}
+            <span style={{ fontSize: 16 }}>{tooltip.isDeleted ? '🗑️' : '📅'}</span>
+            {tooltip.isDeleted ? (
+              <span style={{ fontWeight: 700, fontSize: 15 }}>ลบรายการลาของ {tooltip.deletedName} แล้ว</span>
+            ) : (
+              formatThaiDateFull(tooltip.date)
+            )}
           </div>
-          {tooltip.data.map((item, i) => (
+          {!tooltip.isDeleted && tooltip.data.map((item, i) => (
             <div key={i} style={{ 
               padding: '10px 0', 
               borderBottom: i < tooltip.data.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' 
@@ -1016,6 +1072,7 @@ export default function Home() {
                 const dateStr = toLocalDateStr(date);
                 const data = leaveMap.get(dateStr) || [];
                 const hasLeave = data.length > 0;
+                const deletedInfo = getDeletedInfo(dateStr);
                 const isToday = dateStr === today;
                 const weekend = date.getDay() === 0 || date.getDay() === 6;
                 const range = inRange(dateStr);
@@ -1036,6 +1093,8 @@ export default function Home() {
                   cellShadow = '0 8px 25px rgba(245, 158, 11, 0.4)';
                 } else if (hasLeave) {
                   cellBg = 'linear-gradient(135deg, #fef9c3, #fef08a)';
+                } else if (deletedInfo) {
+                  cellBg = 'linear-gradient(135deg, #fee2e2, #fecaca)';
                 } else if (isHovered && canClick) {
                   cellBg = '#f1f5f9';
                 }
@@ -1047,9 +1106,19 @@ export default function Home() {
                     onMouseEnter={(e) => {
                       setHoverCell(dateStr);
                       if (hasLeave && !isMobile) handleMouseEnter(e, data, dateStr);
+                      else if (deletedInfo && !isMobile) handleMouseEnter(e, [], dateStr, true, deletedInfo.name);
                       if (startDate && !endDate && canClick) setHover(dateStr);
                     }}
-                    onMouseLeave={() => { setTooltip(null); setHover(null); setHoverCell(null); }}
+                    onMouseLeave={() => { 
+                      // ใช้ setTimeout เพื่อให้มีเวลาเลื่อนไป tooltip
+                      setTimeout(() => {
+                        if (!tooltipHoveredRef.current) {
+                          setTooltip(null);
+                          setHoverCell(null);
+                        }
+                      }, 350);
+                      setHover(null); 
+                    }}
                     style={{
                       minHeight: cellHeight,
                       padding: cellPadding,
