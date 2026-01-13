@@ -99,6 +99,7 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [error, setError] = useState(null);
   const [hoverCell, setHoverCell] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, name, startDate, endDate }
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 900);
@@ -160,7 +161,10 @@ export default function Home() {
       while (d <= end) {
         const k = toLocalDateStr(d);
         map.set(k, [...(map.get(k) || []), { 
+          id: l.id,
           name: l.name, 
+          startDate: l.startDate,
+          endDate: l.endDate,
           createdDate: l.createdDate,
           createdTime: l.createdTime 
         }]);
@@ -285,6 +289,35 @@ export default function Home() {
     setLoading(false);
   };
 
+  const deleteLeave = async (id) => {
+    setLoading(true);
+    setTooltip(null);
+    setConfirmDelete(null);
+    
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/leaves?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        setLeaves(leaves.filter(l => l.id !== id));
+        notify('ลบรายการลาสำเร็จ');
+      } else {
+        const error = await res.json();
+        notify(error.message || 'ไม่สามารถลบได้', false);
+      }
+    } catch (err) {
+      notify('เกิดข้อผิดพลาด: ' + err.message, false);
+    }
+    
+    setLoading(false);
+  };
+
   const handleMouseEnter = (e, data, dateStr) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltip({
@@ -395,22 +428,158 @@ export default function Home() {
                 marginBottom: 6, 
                 display: 'flex', 
                 alignItems: 'center', 
+                justifyContent: 'space-between',
                 gap: 10 
               }}>
-                <span style={{ 
-                  width: 14, 
-                  height: 14, 
-                  borderRadius: 6, 
-                  background: getEmployeeGradient(item.name),
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                }}></span>
-                {item.name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ 
+                    width: 14, 
+                    height: 14, 
+                    borderRadius: 6, 
+                    background: getEmployeeGradient(item.name),
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                  }}></span>
+                  {item.name}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete({ id: item.id, name: item.name, startDate: item.startDate, endDate: item.endDate });
+                    setTooltip(null);
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)'
+                  }}
+                  onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                  onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+                >
+                  🗑️ ลบ
+                </button>
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', paddingLeft: 24 }}>
+                {item.startDate === item.endDate 
+                  ? `วันที่ ${formatThaiDateFull(item.startDate)}`
+                  : `${formatThaiDateFull(item.startDate)} - ${formatThaiDateFull(item.endDate)}`
+                }
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', paddingLeft: 24, marginTop: 2 }}>
                 บันทึกเมื่อ {formatThaiDateFull(item.createdDate)} • {item.createdTime} น.
               </div>
             </div>
           ))}
+        </div>
+      )}
+      
+      {/* Confirm Delete Dialog */}
+      {confirmDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+          animation: 'fadeIn 0.2s ease-out'
+        }} onClick={() => setConfirmDelete(null)}>
+          <div style={{
+            background: 'white',
+            borderRadius: 24,
+            padding: 32,
+            maxWidth: 400,
+            width: '90%',
+            boxShadow: '0 30px 60px rgba(0,0,0,0.3)',
+            animation: 'slideIn 0.3s ease-out'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ 
+              fontSize: 48, 
+              textAlign: 'center', 
+              marginBottom: 16 
+            }}>⚠️</div>
+            <h3 style={{ 
+              fontSize: 20, 
+              fontWeight: 700, 
+              textAlign: 'center', 
+              margin: '0 0 12px 0',
+              color: '#1e293b'
+            }}>ยืนยันการลบ</h3>
+            <p style={{ 
+              fontSize: 15, 
+              textAlign: 'center', 
+              color: '#64748b',
+              margin: '0 0 8px 0',
+              lineHeight: 1.6
+            }}>
+              คุณต้องการลบรายการลาของ <strong style={{ color: '#1e293b' }}>{confirmDelete.name}</strong>
+            </p>
+            <p style={{ 
+              fontSize: 14, 
+              textAlign: 'center', 
+              color: '#94a3b8',
+              margin: '0 0 24px 0'
+            }}>
+              {confirmDelete.startDate === confirmDelete.endDate 
+                ? `วันที่ ${formatThaiDateFull(confirmDelete.startDate)}`
+                : `${formatThaiDateFull(confirmDelete.startDate)} - ${formatThaiDateFull(confirmDelete.endDate)}`
+              }
+            </p>
+            <div style={{ 
+              display: 'flex', 
+              gap: 12, 
+              justifyContent: 'center' 
+            }}>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '14px 28px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => deleteLeave(confirmDelete.id)}
+                disabled={loading}
+                style={{
+                  background: loading ? '#94a3b8' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '14px 28px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s',
+                  boxShadow: loading ? 'none' : '0 8px 20px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                {loading ? '⏳ กำลังลบ...' : '🗑️ ลบรายการ'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       
@@ -980,6 +1149,10 @@ export default function Home() {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </div>
